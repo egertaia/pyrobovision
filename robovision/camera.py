@@ -1,23 +1,76 @@
 from threading import Thread, Event
 import cv2
 from time import time, sleep
+import numpy as np
 
 
+class CameraMaster:
+    """docstring for CameraMaster"""
+    def __init__(self, target=None):
+        self.slaves = {}
+        self.target = target
+        self.spawnSlaves()
+
+    def spawnSlaves(self):
+        for index in range(10):
+            temp_camera = cv2.VideoCapture(index)
+            success, temp_frame = temp_camera.read()
+            sleep(0.05)
+            success, temp_frame = temp_camera.read()
+            print( 'Camera index {} is returned {}'.format( index,success) )
+            if success:
+                self.slaves[index] = FrameGrabber( camera=temp_camera, motors=self.target)
+
+    def introduceSlaves(self):
+        return list( self.slaves.items() )
+
+    @property
+    def slaveCount(self):
+        return len(self.slaves)
+
+
+    def getGroupPhoto(self,TILE_SIZE = (320,240)):
+
+        frames = [cv2.resize(grab.frame, TILE_SIZE) for grab in self.slaves.values()]
+        padding = np.zeros((TILE_SIZE[1],TILE_SIZE[0],3))
+        
+        if len(frames) > 1:
+            frames = frames + [padding] * (len(frames)%2)
+            last_frame = np.zeros(0) #
+            for i in range(len(frames)//2):
+                A,B = frames.pop(),frames.pop()
+                row = np.vstack([
+                    cv2.resize(A, TILE_SIZE),
+                    cv2.resize(B, TILE_SIZE)
+                ])
+                if not last_frame.size:
+                    last_frame = row
+                else:
+                    last_frame = np.hstack([last_frame,row])
+        else:
+            last_frame = frames[0]
+
+        return last_frame
+
+    #TODO get slaves, generate slider forms
+    def generateFormForSlaves(self):
+        pass
+        
 class FrameGrabber(Thread):
     # Set HSV color ranges, this basically means color red regardless of saturation or brightness
     BALL_LOWER = ( 0, 140, 140)
     BALL_UPPER = (10, 255, 255)
 
-    def __init__(self, width=640, height=480, index=0, master=None, cap = cv2.VideoCapture(0), motors=None):
+    def __init__(self, width=640, height=480, master=None, camera = cv2.VideoCapture(0), motors=None):
         Thread.__init__(self)
         self.daemon = True
-        self.cap = cap
+        self.camera = camera
         self.motors = motors
         self.width, self.height = width, height
         self.cx, self.cy = width / 2, height
-        self.cap.set(3, width)
-        self.cap.set(4, height)
-        self.cap.set(cv2.CAP_PROP_FPS, 60)
+        self.camera.set(3, width)
+        self.camera.set(4, height)
+        self.camera.set(cv2.CAP_PROP_FPS, 60)
         self.slaves = set()
         self.master = master
         if master:
@@ -43,7 +96,7 @@ class FrameGrabber(Thread):
     def process_frame(self):
         timestamp_begin = time()
 
-        succes, frame = self.cap.read()
+        succes, frame = self.camera.read()
 
         self.frames += 1
         timestamp_begin = time()
