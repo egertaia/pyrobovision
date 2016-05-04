@@ -21,8 +21,6 @@ class CameraMaster:
             if success:
                 self.slaves[index] = FrameGrabber( camera=temp_camera, motors=self.target)
 
-    def introduceSlaves(self):
-        return list( self.slaves.items() )
 
     @property
     def slaveCount(self):
@@ -55,6 +53,9 @@ class CameraMaster:
     #TODO get slaves, generate slider forms
     def generateFormForSlaves(self):
         pass
+
+    def introduceSlaves(self):
+        return list( self.slaves.items() )
         
 class FrameGrabber(Thread):
     # Set HSV color ranges, this basically means color red regardless of saturation or brightness

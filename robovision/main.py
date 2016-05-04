@@ -38,6 +38,10 @@ def video():
 def index():
     return render_template('sliders.html')
 
+@app.route('/test')
+def testIntroduce():
+    return render_template('generateFormsExampleTemplate.html', camera_list = cameras.introduceSlaves() )
+
 # static files for js and css
 @app.route('/nouislider.css')
 def nouisliderCSS():
