@@ -12,19 +12,27 @@ class CameraMaster:
         self.spawnSlaves()
 
     def spawnSlaves(self):
+
         for index in range(10):
             temp_camera = cv2.VideoCapture(index)
             success, temp_frame = temp_camera.read()
             sleep(0.05)
             success, temp_frame = temp_camera.read()
             print( 'Camera index {} is returned {}'.format( index,success) )
+            camera_id = 'camera_{}'.format(index)
             if success:
-                self.slaves[index] = FrameGrabber( camera=temp_camera, motors=self.target)
+                self.slaves[camera_id] = FrameGrabber( camera=temp_camera, motors=self.target)
 
 
     @property
     def slaveCount(self):
         return len(self.slaves)
+
+    def getSlavePhoto(self,camera_id,TILE_SIZE = (320,240) ):
+        camera = self.slaves.get(camera_id)        
+        frame = cv2.resize(camera.frame, TILE_SIZE) 
+
+        return frame
 
 
     def getGroupPhoto(self,TILE_SIZE = (320,240)):
@@ -48,23 +56,25 @@ class CameraMaster:
         else:
             last_frame = frames[0]
 
-        return last_frame
+        return last_frame    
 
-    #TODO get slaves, generate slider forms
-    def generateFormForSlaves(self):
-        pass
+    def getSlavesList(self):
+        import random
+        return list( self.slaves.items() )* random.randint(1,8)
 
-    def introduceSlaves(self):
-        return list( self.slaves.items() )
+    def setSlaveProperty(self,camera_id,channel,LOWER,UPPER):
+        camera = self.slaves.get(camera_id)
+        camera.setChannel(channel,LOWER,UPPER)
         
 class FrameGrabber(Thread):
     # Set HSV color ranges, this basically means color red regardless of saturation or brightness
-    BALL_LOWER = ( 0, 140, 140)
-    BALL_UPPER = (10, 255, 255)
+    BALL_LOWER = [ 0, 140, 140]
+    BALL_UPPER = [10, 255, 255]
 
-    def __init__(self, width=640, height=480, master=None, camera = None, motors=None):
+    def __init__(self, width=640, height=480, master=None, camera = None, motors=None, key = None):
         Thread.__init__(self)
         self.daemon = True
+        self.key = key
         self.camera = camera
         self.motors = motors
         self.width, self.height = width, height
@@ -85,7 +95,10 @@ class FrameGrabber(Thread):
         self.start()
 
 
-
+    def setChannel(self,channel,LOWER,UPPER):
+        index = ['H','S','V'].index(channel)
+        self.BALL_LOWER[index] = LOWER
+        self.BALL_UPPER[index] = UPPER
     def run(self):
         while self.running:
             self.process_frame()
@@ -110,7 +123,7 @@ class FrameGrabber(Thread):
 
         blurred = cv2.blur(frame, (4,4))
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV) # Convert red, green and blue to hue, saturation and brightness
-        mask = cv2.inRange(hsv, self.BALL_LOWER, self.BALL_UPPER)
+        mask = cv2.inRange(hsv, tuple(self.BALL_LOWER), tuple(self.BALL_UPPER))
         mask = cv2.dilate(mask, None, iterations=2)
         cutout = cv2.bitwise_and(frame,frame, mask=mask)
         im2, cnts, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)

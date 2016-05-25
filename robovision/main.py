@@ -23,24 +23,34 @@ print('grabber count', cameras.slaveCount)
 
 app = Flask(__name__)
 
-@app.route('/video')
-def video():
+# @app.route('/video')
+# def video():
+#     def generator():
+#         while True:
+#             last_frame = cameras.getGroupPhoto()
+                
+#             ret, jpeg = cv2.imencode('.jpg', last_frame, (cv2.IMWRITE_JPEG_QUALITY, 80))
+#             yield b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + jpeg.tostring() + b'\r\n\r\n'
+#             sleep(0.05)
+#     return Response(generator(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+@app.route('/video/<path:camera_id>')
+def video(camera_id):
     def generator():
         while True:
-            last_frame = cameras.getGroupPhoto()
+            last_frame = cameras.getSlavePhoto(camera_id)
                 
             ret, jpeg = cv2.imencode('.jpg', last_frame, (cv2.IMWRITE_JPEG_QUALITY, 80))
             yield b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + jpeg.tostring() + b'\r\n\r\n'
             sleep(0.05)
     return Response(generator(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
+
 @app.route('/')
 def index():
-    return render_template('sliders.html')
+    return render_template('main.html',camera_list = cameras.getSlavesList())
 
-@app.route('/test')
-def testIntroduce():
-    return render_template('generateFormsExampleTemplate.html', camera_list = cameras.introduceSlaves() )
 
 # static files for js and css
 @app.route('/nouislider.css')
@@ -50,21 +60,14 @@ def nouisliderCSS():
 def nouisliderJS():
     return render_template('nouislider.js')
 
-# @app.route('/camera/config', methods=['get', 'post'])
-# def config():
-#     global grab1 # will nuke later
-
-#     blH = int(request.form.get('blH')) #int cant be none
-#     blS = int(request.form.get('blS'))
-#     blV = int(request.form.get('blV'))
-#     bhH = int(request.form.get('bhH'))
-#     bhS = int(request.form.get('bhS'))
-#     bhV = int(request.form.get('bhV'))
-#     print ("lower range is now: " , grab1.BALL_LOWER , (blH, blS, blV))
-#     grab1.BALL_LOWER = (blH, blS, blV)
-#     print("Higher range is now: " ,grab1.BALL_UPPER, (bhH, bhS, bhV))
-#     grab1.BALL_UPPER = (bhH, bhS, bhV)
-#     return "OK" 
+@app.route('/config/camera/<path:camera_id>', methods=['get', 'post'])
+def config(camera_id):
+    channel = request.form.get('channel')
+    LOWER     = int(request.form.get('LOWER'))
+    UPPER     = int(request.form.get('UPPER'))
+    
+    cameras.setSlaveProperty(camera_id,channel,LOWER,UPPER)
+    return 'Mkay, yes, a response, I guess I can do that.'
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, use_reloader=False, threaded=True)
