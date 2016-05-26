@@ -12,6 +12,9 @@
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
     <link rel="stylesheet" type="text/css" href= "{{url_for('static', filename='webpage.css') }}">
 
+    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+    <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+
   </head>
   <body>
 
@@ -55,7 +58,12 @@
         {% for key,camera in camera_list %}
       
             <div class="cameraWrapper">
+                <button type="button" class="btn btn-primary">Primary</button>
+                <button type="button" class="btn btn-success">Debug</button>
+                <button type="button" class="btn btn-info">Toggle</button>
+
                 <img style="-webkit-user-select: none" src="/video/{{key}}">
+                <img style="-webkit-user-select: none" src="/debug/{{key}}">
 
                 <div class="colorPicker"> 
                     <div class="no-ui-slider" id="picker">

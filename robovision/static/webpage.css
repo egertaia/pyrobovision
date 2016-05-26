@@ -1,5 +1,5 @@
 body {
-  background-color: #009688;
+  background-color: #009688 !important;
   color: #212121;
   padding-top: 50pt;
 }
@@ -30,6 +30,8 @@ body {
   overflow: auto 
 }
 .cameraWrapper img {
+  margin-top: 10pt;
+  margin-bottom: 10pt;
   width: 100%;
 }
 
