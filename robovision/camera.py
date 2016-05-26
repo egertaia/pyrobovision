@@ -2,6 +2,8 @@ from threading import Thread, Event
 import cv2
 from time import time, sleep
 import numpy as np
+import configman
+
 
 
 class CameraMaster:
@@ -10,6 +12,8 @@ class CameraMaster:
         self.slaves = {}
         self.target = target
         self.spawnSlaves()
+        configman.load_camera_config(self.slaves)
+        
 
     def spawnSlaves(self):
 
@@ -21,7 +25,7 @@ class CameraMaster:
             print( 'Camera index {} is returned {}'.format( index,success) )
             camera_id = 'camera_{}'.format(index)
             if success:
-                self.slaves[camera_id] = FrameGrabber( camera=temp_camera, motors=self.target)
+                self.slaves[camera_id] = FrameGrabber( camera=temp_camera, motors=self.target, key = camera_id)
 
 
     @property
@@ -66,6 +70,10 @@ class CameraMaster:
         camera = self.slaves.get(camera_id)
         camera.setChannel(channel,LOWER,UPPER)
         
+    def __del__(self):
+        print("läksin katki")
+        configman.save_camera_config(self.slaves.values())
+
 class FrameGrabber(Thread):
     # Set HSV color ranges, this basically means color red regardless of saturation or brightness
 
