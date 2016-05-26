@@ -32,9 +32,12 @@ class CameraMaster:
     def slaveCount(self):
         return len(self.slaves)
 
-    def getSlavePhoto(self,camera_id,TILE_SIZE = (320,240) ):
-        camera = self.slaves.get(camera_id)        
-        frame = cv2.resize(camera.frame, TILE_SIZE) 
+    def getSlavePhoto(self,camera_id,TILE_SIZE = (320,240), debug = False ):
+        camera = self.slaves.get(camera_id)       
+        if not debug: 
+            frame = cv2.resize(camera.frame, TILE_SIZE) 
+        if debug:
+            frame = cv2.resize(camera.debug_frame, TILE_SIZE) 
 
         return frame
 
@@ -172,3 +175,4 @@ class FrameGrabber(Thread):
         cv2.putText(frame,"%.01f fps" % self.fps, (10,20), cv2.FONT_HERSHEY_SIMPLEX, 0.3,(255,255,255),1)
         #self.last_frame = np.hstack([frame, cutout])
         self.frame = frame
+        self.debug_frame = cutout
