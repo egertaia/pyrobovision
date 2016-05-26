@@ -60,7 +60,7 @@ class CameraMaster:
 
     def getSlavesList(self):
         import random
-        return list( self.slaves.items() )* random.randint(1,8)
+        return list( self.slaves.items() ) #* random.randint(1,8)
 
     def setSlaveProperty(self,camera_id,channel,LOWER,UPPER):
         camera = self.slaves.get(camera_id)
@@ -68,8 +68,7 @@ class CameraMaster:
         
 class FrameGrabber(Thread):
     # Set HSV color ranges, this basically means color red regardless of saturation or brightness
-    BALL_LOWER = [ 0, 140, 140]
-    BALL_UPPER = [10, 255, 255]
+
 
     def __init__(self, width=640, height=480, master=None, camera = None, motors=None, key = None):
         Thread.__init__(self)
@@ -77,6 +76,9 @@ class FrameGrabber(Thread):
         self.key = key
         self.camera = camera
         self.motors = motors
+
+        self.BALL_LOWER = [ 0, 140, 140]
+        self.BALL_UPPER = [10, 255, 255]
         self.width, self.height = width, height
         self.cx, self.cy = width / 2, height
         self.camera.set(3, width)
