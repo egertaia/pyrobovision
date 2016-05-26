@@ -24,7 +24,6 @@ def save_camera_config(cameras):
 def load_camera_config(camera_map):
 	config = configparser.ConfigParser()
 	config.read('configs/cameras.conf')
-	print(list(config.keys()))
 	for key in config.keys():
 		camera = camera_map.get(key)
 		if camera:

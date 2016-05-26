@@ -32,13 +32,16 @@ class CameraMaster:
     def slaveCount(self):
         return len(self.slaves)
 
-    def getSlavePhoto(self,camera_id,TILE_SIZE = (320,240), debug = False ):
+    def getSlavePhoto(self,camera_id,TILE_SIZE = (320,240), mode = 0 ):
         camera = self.slaves.get(camera_id)       
-        if not debug: 
+        if mode==0: 
             frame = cv2.resize(camera.frame, TILE_SIZE) 
-        if debug:
+        elif mode==1:
             frame = cv2.resize(camera.debug_frame, TILE_SIZE) 
-
+        elif mode==2:
+            stack = np.vstack([camera.frame, camera.debug_frame])
+            TEMP_TILE_SIZE = (TILE_SIZE[0],TILE_SIZE[1]*2)
+            frame = cv2.resize(stack, TEMP_TILE_SIZE) 
         return frame
 
 
@@ -74,7 +77,7 @@ class CameraMaster:
         camera.setChannel(channel,LOWER,UPPER)
         
     def __del__(self):
-        print("läksin katki")
+        print('catched termination')
         configman.save_camera_config(self.slaves.values())
 
 class FrameGrabber(Thread):

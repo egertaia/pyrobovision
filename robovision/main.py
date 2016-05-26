@@ -50,13 +50,23 @@ def video(camera_id):
 def debug(camera_id):
     def generator():
         while True:
-            last_frame = cameras.getSlavePhoto(camera_id,debug=True)
+            last_frame = cameras.getSlavePhoto(camera_id,mode=1)
                 
             ret, jpeg = cv2.imencode('.jpg', last_frame, (cv2.IMWRITE_JPEG_QUALITY, 80))
             yield b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + jpeg.tostring() + b'\r\n\r\n'
             sleep(0.05)
     return Response(generator(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
+@app.route('/both/<path:camera_id>')
+def both(camera_id):
+    def generator():
+        while True:
+            last_frame = cameras.getSlavePhoto(camera_id,mode=2)
+                
+            ret, jpeg = cv2.imencode('.jpg', last_frame, (cv2.IMWRITE_JPEG_QUALITY, 80))
+            yield b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + jpeg.tostring() + b'\r\n\r\n'
+            sleep(0.05)
+    return Response(generator(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/')
 def index():
@@ -82,5 +92,4 @@ def config(camera_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, use_reloader=False, threaded=True)
-    print("surin")
     del cameras
