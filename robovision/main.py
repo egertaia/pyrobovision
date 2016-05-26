@@ -23,16 +23,16 @@ print('grabber count', cameras.slaveCount)
 
 app = Flask(__name__)
 
-# @app.route('/video')
-# def video():
-#     def generator():
-#         while True:
-#             last_frame = cameras.getGroupPhoto()
+@app.route('/video')
+def video_combined():
+    def generator():
+        while True:
+            last_frame = cameras.getGroupPhoto()
                 
-#             ret, jpeg = cv2.imencode('.jpg', last_frame, (cv2.IMWRITE_JPEG_QUALITY, 80))
-#             yield b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + jpeg.tostring() + b'\r\n\r\n'
-#             sleep(0.05)
-#     return Response(generator(), mimetype='multipart/x-mixed-replace; boundary=frame')
+            ret, jpeg = cv2.imencode('.jpg', last_frame, (cv2.IMWRITE_JPEG_QUALITY, 80))
+            yield b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + jpeg.tostring() + b'\r\n\r\n'
+            sleep(0.05)
+    return Response(generator(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 @app.route('/video/<path:camera_id>')
