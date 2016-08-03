@@ -4,178 +4,159 @@ from time import time, sleep
 import numpy as np
 import configman
 
+FONT = cv2.FONT_HERSHEY_SIMPLEX
+FONT_COLOR = (255, 255, 255)
 
 
 class CameraMaster:
     """docstring for CameraMaster"""
-    def __init__(self, target=None):
+    VIDEO_MODE = 0
+    DEBUG_MODE = 1
+    COMBO_MODE = 2
+
+    def __init__(self):
         self.slaves = {}
-        self.target = target
-        self.spawnSlaves()
+        self.spawn_slaves()
         configman.load_camera_config(self.slaves)
-        
-
-    def spawnSlaves(self):
-
-        for index in range(10):
-            temp_camera = cv2.VideoCapture(index)
-            success, temp_frame = temp_camera.read()
-            sleep(0.05)
-            success, temp_frame = temp_camera.read()
-            print( 'Camera index {} is returned {}'.format( index,success) )
-            camera_id = 'camera_{}'.format(index)
-            if success:
-                self.slaves[camera_id] = FrameGrabber( camera=temp_camera, motors=self.target, key = camera_id)
-
 
     @property
-    def slaveCount(self):
-        return len(self.slaves)
+    def slave_count(self):
+        return len(self.alive_slaves)
 
-    def getSlavePhoto(self,camera_id,TILE_SIZE = (320,240), mode = 0 ):
-        camera = self.slaves.get(camera_id)       
-        if mode==0: 
-            frame = cv2.resize(camera.frame, TILE_SIZE) 
-        elif mode==1:
-            frame = cv2.resize(camera.debug_frame, TILE_SIZE) 
-        elif mode==2:
-            stack = np.vstack([camera.frame, camera.debug_frame])
-            TEMP_TILE_SIZE = (TILE_SIZE[0],TILE_SIZE[1]*2)
-            frame = cv2.resize(stack, TEMP_TILE_SIZE) 
+    @property
+    def alive_slaves(self):
+        return dict((k, v) for k, v in self.slaves.items() if v.running)
+
+    def spawn_slaves(self):
+        # loads camera, bad indices are skipped
+        for index in range(10):
+            camera_id = index
+            self.slaves[camera_id] = FrameGrabber(key=index)
+
+    def get_slave_photo(self, camera_id, mode=0, TILE_SIZE=(320, 240)):
+        camera = self.alive_slaves.get(camera_id)
+        frame = camera.frame
+        if mode == CameraMaster.VIDEO_MODE:
+            pass
+        elif mode == CameraMaster.DEBUG_MODE:
+            frame = cv2.bitwise_and(frame, frame, mask=camera.debug_frame)
+        elif mode == CameraMaster.COMBO_MODE:
+            cutout = cv2.bitwise_and(frame, frame, mask=camera.debug_frame)
+            frame = np.vstack([frame, cutout])
+        stack_height = 2 if mode == CameraMaster.COMBO_MODE else 1
+        tile_size = (TILE_SIZE[0], TILE_SIZE[1] * stack_height)
+        frame = cv2.resize(frame, tile_size)
+        cv2.putText(frame, "%.01f fps cam%s" % (camera.fps, camera_id), (10, 50), FONT, 1, FONT_COLOR, 1)
+        center = int(camera.center[0] * TILE_SIZE[0]), int(camera.center[1] * TILE_SIZE[1])
+        cv2.putText(frame, "{:.3f}".format(camera.radius), center, FONT, 1, FONT_COLOR, 1)
+        cv2.circle(frame, center, int(camera.radius * TILE_SIZE[0]), (0, 0, 255), 5)
         return frame
 
+    def get_group_photo(self, mode=0, TILE_SIZE=(320, 240)):
+        frames = list(self.get_slave_photo(c_key, mode=mode, TILE_SIZE=TILE_SIZE) for c_key in self.alive_slaves.keys())
+        if len(frames) == 1:
+            return frames[0]
+        elif len(frames) % 2:
+            stack_height = 2 if mode == CameraMaster.COMBO_MODE else 1
+            padding = np.zeros((TILE_SIZE[1] * stack_height, TILE_SIZE[0], 3))
+            frames.append(padding)
+        v_stacks = (np.vstack([frames[i], frames[i + 1]]) for i in range(0, self.slave_count, 2))
+        stack = np.hstack(v_stacks)
+        return stack
 
-    def getGroupPhoto(self,TILE_SIZE = (320,240)):
+    def get_slaves_list(self):
+        return list(self.alive_slaves.items())
 
-        frames = [cv2.resize(grab.frame, TILE_SIZE) for grab in self.slaves.values()]
-        padding = np.zeros((TILE_SIZE[1],TILE_SIZE[0],3))
-        
-        if len(frames) > 1:
-            frames = frames + [padding] * (len(frames)%2)
-            last_frame = np.zeros(0) #
-            for i in range(len(frames)//2):
-                A,B = frames.pop(),frames.pop()
-                row = np.vstack([
-                    cv2.resize(A, TILE_SIZE),
-                    cv2.resize(B, TILE_SIZE)
-                ])
-                if not last_frame.size:
-                    last_frame = row
-                else:
-                    last_frame = np.hstack([last_frame,row])
-        else:
-            last_frame = frames[0]
-
-        return last_frame    
-
-    def getSlavesList(self):
-        import random
-        return list( self.slaves.items() ) #* random.randint(1,8)
-
-    def setSlaveProperty(self,camera_id,channel,LOWER,UPPER):
+    def set_slave_properties(self, camera_id, channel, LOWER, UPPER):
         camera = self.slaves.get(camera_id)
-        camera.setChannel(channel,LOWER,UPPER)
-        
-    def __del__(self):
-        print('catched termination')
+        camera.set_channel(channel, LOWER, UPPER)
         configman.save_camera_config(self.slaves.values())
 
+
 class FrameGrabber(Thread):
-    # Set HSV color ranges, this basically means color red regardless of saturation or brightness
-
-
-    def __init__(self, width=640, height=480, master=None, camera = None, motors=None, key = None):
+    def __init__(self, width=640, height=480, key=None):
         Thread.__init__(self)
         self.daemon = True
-        self.key = key
-        self.camera = camera
-        self.motors = motors
+        self.running = False
+        self.camera = None
 
-        self.BALL_LOWER = [ 0, 140, 140]
-        self.BALL_UPPER = [10, 255, 255]
+        self.key = key
         self.width, self.height = width, height
-        self.cx, self.cy = width / 2, height
-        self.camera.set(3, width)
-        self.camera.set(4, height)
-        self.camera.set(cv2.CAP_PROP_FPS, 60)
-        self.slaves = set()
-        self.master = master
-        if master:
-            master.slaves.add(self)
+        self.BALL_LOWER = (0, 140, 140)
+        self.BALL_UPPER = (10, 255, 255)
+
         self.timestamp = time()
         self.frames = 0
         self.fps = 0
-        self.running = True
-        self.ready = Event() # Used for thread synchronization
-        self.ready.clear()
+
+        self.scan_times = [0] * 40
+
+        self.c_ms = 0
+        self.center = (-1, -1)
+        self.radius = -1
+        self.frame = None
+        self.debug_frame = None
+
         self.start()
 
+    def connect_camera(self):
+        temp_camera = cv2.VideoCapture(self.key)
+        _, _ = temp_camera.read()
+        sleep(0.08)
+        success, _ = temp_camera.read()
+        print('cam{} running:{}'.format(self.key, success))
+        if not success: return
 
-    def setChannel(self,channel,LOWER,UPPER):
-        index = ['H','S','V'].index(channel)
-        self.BALL_LOWER[index] = LOWER
-        self.BALL_UPPER[index] = UPPER
+        self.camera = temp_camera
+        self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        self.camera.set(cv2.CAP_PROP_FPS, 60)
+        self.running = True
+
+    def set_channel(self, channel, LOWER, UPPER):
+        index = ['H', 'S', 'V'].index(channel)
+        L, U = list(self.BALL_LOWER), list(self.BALL_UPPER)
+        L[index], U[index] = LOWER, UPPER
+        self.BALL_LOWER = tuple(L)
+        self.BALL_UPPER = tuple(U)
+
     def run(self):
+        self.connect_camera()
         while self.running:
             self.process_frame()
-            self.ready.set()
-            if self.master:
-                self.master.ready.wait() # Wait until master is ready
+            self.tick_fps()
 
-
-    def process_frame(self):
-        timestamp_begin = time()
-
-        succes, frame = self.camera.read()
-
+    def tick_fps(self):
         self.frames += 1
         timestamp_begin = time()
-        if self.frames > 10:
-            self.fps = self.frames / (timestamp_begin - self.timestamp)
-            self.frames = 0
+        if not self.frames % 60:
+            self.fps = 60 / (timestamp_begin - self.timestamp)
             self.timestamp = timestamp_begin
-        cv2.putText(frame,"%dx%d@%.01fHz" % (self.width, self.height, self.fps),
-            (10,30), cv2.FONT_HERSHEY_SIMPLEX, 1,(255,255,255),1)
+            print(
+                'rate {}: cap={:.4f} process={:.4f} fps={:.1f} '.format(self.key, self.c_ms, sum(self.scan_times) / 40,
+                                                                        self.fps))
 
-        blurred = cv2.blur(frame, (4,4))
-        hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV) # Convert red, green and blue to hue, saturation and brightness
-        mask = cv2.inRange(hsv, tuple(self.BALL_LOWER), tuple(self.BALL_UPPER))
+    def capture_frame(self):
+        success, frame = self.camera.read()
+        start = time()
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        self.c_ms = time() - start
+        return hsv
+
+    def process_frame(self):
+        frame = self.capture_frame()
+        start = time()
+        frame = cv2.blur(frame, (4, 4))
+        mask = cv2.inRange(frame, self.BALL_LOWER, self.BALL_UPPER)
         mask = cv2.dilate(mask, None, iterations=2)
-        cutout = cv2.bitwise_and(frame,frame, mask=mask)
         im2, cnts, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        distance = None
-
-        if len(cnts) > 0:
+        if cnts:
             c = max(cnts, key=cv2.contourArea)
-            (x, y), radius = cv2.minEnclosingCircle(c)
-            M = cv2.moments(c)
-            center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-            if radius > 10:
-                cv2.circle(frame, center, int(radius), (0, 0, 255), 5)
-                distance = round((1/radius)*100*11.35, 2)
-                cv2.putText(frame, str(radius), (int(x),int(y)), cv2.FONT_HERSHEY_SIMPLEX, 0.7,(255,255,255),1)
+            center, radius = cv2.minEnclosingCircle(c)
+            self.center = center[0] / self.width, center[1] / self.height
+            self.radius = radius / self.width
 
-        if distance:
-            dx = (x - self.cx) / 2.0
-            dy = (self.cy - y) / 3.0
-            adx = abs(dx)
-
-            if adx > 100:
-                if dx > 0:
-                    cv2.putText(frame,"Going right %d" % adx, (10,40), cv2.FONT_HERSHEY_SIMPLEX, 0.3,(255,255,255),1)
-                    self.motors.set(adx, adx, adx)
-                else:
-                    cv2.putText(frame,"Going left %d" % adx, (10,40), cv2.FONT_HERSHEY_SIMPLEX, 0.3,(255,255,255),1)
-                    self.motors.set(-adx, -adx, -adx)
-            else:
-                cv2.putText(frame,"Going forward %d" % dy, (10,40), cv2.FONT_HERSHEY_SIMPLEX, 0.3,(255,255,255),1)
-                self.motors.set(100 + dy, -100 -dy, dx)
-        else:
-            cv2.putText(frame,"Stopping", (10,40), cv2.FONT_HERSHEY_SIMPLEX, 0.3,(255,255,255),1)
-            self.motors.set(0, 0, 0)
-
-        cv2.putText(frame,"%.01f fps" % self.fps, (10,20), cv2.FONT_HERSHEY_SIMPLEX, 0.3,(255,255,255),1)
-        #self.last_frame = np.hstack([frame, cutout])
         self.frame = frame
-        self.debug_frame = cutout
+        self.debug_frame = mask
+        self.scan_times[self.frames % 40] = time() - start
