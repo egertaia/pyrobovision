@@ -9,15 +9,15 @@ path = dir_path + '/configs/cameras.conf'
 def save_camera_config(cameras):
     config = configparser.ConfigParser()
     config.read(path)
-
     for camera in cameras:
-        config[camera.key] = {}
-        config[camera.key]['LowerHue'] = str(camera.BALL_LOWER[0])
-        config[camera.key]['LowerSaturation'] = str(camera.BALL_LOWER[1])
-        config[camera.key]['LowerValue'] = str(camera.BALL_LOWER[2])
-        config[camera.key]['HigherHue'] = str(camera.BALL_UPPER[0])
-        config[camera.key]['HigherSaturation'] = str(camera.BALL_UPPER[1])
-        config[camera.key]['HigherValue'] = str(camera.BALL_UPPER[2])
+        key = str(camera.key)
+        config[key] = {}
+        config[key]['LowerHue'] = str(camera.BALL_LOWER[0])
+        config[key]['LowerSaturation'] = str(camera.BALL_LOWER[1])
+        config[key]['LowerValue'] = str(camera.BALL_LOWER[2])
+        config[key]['HigherHue'] = str(camera.BALL_UPPER[0])
+        config[key]['HigherSaturation'] = str(camera.BALL_UPPER[1])
+        config[key]['HigherValue'] = str(camera.BALL_UPPER[2])
 
     with open(path, 'w') as configfile:
         config.write(configfile)

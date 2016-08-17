@@ -87,6 +87,7 @@ def nouisliderJS():
 
 @app.route('/config/camera/<path:camera_id>', methods=['get', 'post'])
 def config(camera_id):
+    camera_id = int(camera_id)
     channel = request.form.get('channel')
     LOWER = int(request.form.get('LOWER'))
     UPPER = int(request.form.get('UPPER'))
